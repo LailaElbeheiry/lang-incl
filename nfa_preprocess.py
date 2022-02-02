@@ -1,19 +1,20 @@
 import math
 from functools import reduce
-from rand_nfa import gen_nfa
+from nfa_create import symbols
 from dd import autoref as _bdd
-
+from automata.fa.nfa import NFA
 
 class BDD_NFA:
 
     bdd = _bdd.BDD()
     bdd.configure(reordering=True)
 
-    def __init__(self, r, f, n, x):
+    # preprocessing
+    def __init__(self, nfa):
         # Assuming the n is a power of 2 for simplicity
+        states, transitions, initial, final = nfa
+        n = len(states)
         k = int(math.log2(n))
-        # states, transitions, final = gen_nfa(r, f, n, False)
-        (states, transitions, final) = x
         vrs0 = ['b{i}'.format(i=k-1-i) for i in range(k)]
         vrs1 = ["b{i}'".format(i=k-1-i) for i in range(k)]
         vrs0.extend(vrs1)
@@ -25,24 +26,25 @@ class BDD_NFA:
         self.Sigma = ["a"]
         self.bdd.declare(*vrs0)
 
+        #  we pick the state 0 to be the initial state
+        #  TODO check if one initial state is good enough
+        self.B_init = self.bdd.add_expr(self.state_to_str(initial, vrs0[:k]))
+
         B_trans = ""
-        for index, state in enumerate(transitions):
-            if index == 0:
-                #  we pick the state 0 to be the initial state
-                #  TODO check if one initial state is good enough
-                self.B_init = self.bdd.add_expr(self.state_to_str(state, vrs0[:k]))
+        for state in transitions:
             if transitions[state]['0']:
-                if index != 0:
+                if B_trans:
                     B_trans += r" \/ "
                 B_trans += r"({} /\ a /\ ({}))".format(self.state_to_str(state, vrs0[:k]),
                                                        self.disjunct_states(transitions[state]['0']))
             if transitions[state]['1']:
-                B_trans += r" \/ "
+                if B_trans:
+                    B_trans += r" \/ "
                 B_trans += r"({} /\ ~a /\ ({}))".format(self.state_to_str(state, vrs0[:k]),
                                                         self.disjunct_states(transitions[state]['1']))
 
-        print(B_trans)
         self.trans_str = B_trans
+        # print(B_trans)
         self.B_trans = self.bdd.add_expr(B_trans)
 
         B_final = ""
@@ -70,8 +72,16 @@ class BDD_NFA:
             prop += self.state_to_str(next_state, self.vrs1)
         return prop
 
+class ExplicitNFA:
 
+    def __init__(self, nfa):
+        states, transitions, initial, final = nfa
 
+        self.nfa = NFA(states = states,
+                  input_symbols = symbols,
+                  transitions = transitions,
+                  initial_state = initial,
+                  final_states = final)
 
 # ((~ b1 /\ ~ b0) /\ a /\ ((~ b1' /\ b0')))
 # \/
