@@ -1,6 +1,8 @@
 import math
+from functools import reduce
 from rand_nfa import gen_nfa
 from dd import autoref as _bdd
+
 
 class BDD_NFA:
 
@@ -15,25 +17,41 @@ class BDD_NFA:
         vrs0 = ['b{i}'.format(i=k-1-i) for i in range(k)]
         vrs1 = ["b{i}'".format(i=k-1-i) for i in range(k)]
         vrs0.extend(vrs1)
-        vrs0.extend(["a", "b"])  # a, b representing 0, 1
+        vrs0.extend(["a"])  # a, b representing 0, 1
         self.k = k
         self.vrs0 = vrs0[:k]
         self.vrs1 = vrs1
         self.prime = dict(zip(self.vrs0, self.vrs1))
-        self.Sigma = ["a", "b"]
+        self.Sigma = ["a"]
         self.bdd.declare(*vrs0)
 
-        B_trans = r"("
+        B_trans = ""
         for index, state in enumerate(transitions):
-            if index != 0:
+            if index == 0:
+                #  we pick the state 0 to be the initial state
+                #  TODO check if one initial state is good enough
+                self.B_init = self.bdd.add_expr(self.state_to_str(state, vrs0[:k]))
+            if transitions[state]['0']:
+                if index != 0:
+                    B_trans += r" \/ "
+                B_trans += r"({} /\ a /\ ({}))".format(self.state_to_str(state, vrs0[:k]),
+                                                       self.disjunct_states(transitions[state]['0']))
+            if transitions[state]['1']:
                 B_trans += r" \/ "
-            B_trans += r"({} /\ a /\ ({}))".format(self.state_to_str(state, vrs0[:k]),
-                                            self.disjunct_states(transitions[state]['0']))
-            B_trans += r" \/ "
-            B_trans += r"({} /\ b /\ ({}))".format(self.state_to_str(state, vrs0[:k]),
-                                            self.disjunct_states(transitions[state]['1']))
-        B_trans += r") /\ ~ (a /\ b)"
+                B_trans += r"({} /\ ~a /\ ({}))".format(self.state_to_str(state, vrs0[:k]),
+                                                        self.disjunct_states(transitions[state]['1']))
+
+        print(B_trans)
+        self.trans_str = B_trans
         self.B_trans = self.bdd.add_expr(B_trans)
+
+        B_final = ""
+        for index, state in enumerate(final):
+            if index != 0:
+                B_final += r" \/ "
+            B_final += self.state_to_str(state, vrs0[:k])
+        self.B_final = self.bdd.add_expr(B_final)
+
 
     def state_to_str(self, state, var_set):
         output = r"("
@@ -55,3 +73,9 @@ class BDD_NFA:
 
 
 
+# ((~ b1 /\ ~ b0) /\ a /\ ((~ b1' /\ b0')))
+# \/
+# \/ ((b1 /\ b0) /\ ~a /\ ((~ b1' /\ ~ b0')))
+# \/ ((b1 /\ ~ b0) /\ a /\ ((b1' /\ b0')))
+# \/
+# \/ ((~ b1 /\ b0) /\ ~a /\ ((b1' /\ ~ b0')))

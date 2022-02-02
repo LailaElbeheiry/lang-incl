@@ -25,27 +25,12 @@ def gen_nfa(r, f, n, stringify):
     [transitions[l]['1'].add(l_) for l, l_ in trans_1]
     return (states, transitions, set(final))
 
-def ssc_nfa(r, f, n):
-    states, transitions, final = gen_nfa(r, f, n, True)
+def ssc_nfa(r, f, n, x):
+    # states, transitions, final = gen_nfa(r, f, n, True)
+    states, transitions, final = x
     nfa = NFA(states = states,
               input_symbols = symbols,
               transitions = transitions,
               initial_state = '0',
               final_states = final)
     return nfa
-
-def bdd_nfa(r, f, n):
-    states, trans_0, trans_1, final = gen_nfa(r, f, n)
-
-
-
-
-
-
-
-
-
-
-
-
-
