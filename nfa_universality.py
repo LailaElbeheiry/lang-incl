@@ -9,6 +9,7 @@ import time
 #       '10': {'1': {'11', '01', '00'}, '0': {'10', '00', '01'}},
 #       '01': {'1': {'11', '10'}, '0': {'11', '01', '00'}},
 #       '00': {'1': {'00'}, '0': {'10'}}},
+#      '11',
 #      # {'11', '01', '00', '10'})
 #      {'01', '10'})
 
@@ -33,6 +34,9 @@ def antichain_leq(q1, q2):
     return all(any(set_leq(s1, s2) for s2 in q2) for s1 in q1)
 
 
+def set_in_antichain(s, q):
+    return any(set_leq(s, s_) for s_ in q)
+
 def antichain_lub(q1, q2):
     q1.extend(q2)
     return max_sets(q1)
@@ -45,15 +49,6 @@ def pre_sigma(B_s, B_sigma):
     B_pre = bdd.quantify(z, nfa.vrs1, forall=False)
     return B_pre
 
-
-def pre(B_s):
-    next_q = bdd.let(nfa.prime, B_s)
-    u = nfa.B_trans & next_q
-    z = bdd.quantify(u, nfa.Sigma, forall=False)
-    B_pre = bdd.quantify(z, nfa.vrs1, forall=False)
-    return B_pre
-
-
 def cpre_sigma(B_s, B_sigma):
     next_q = bdd.let(nfa.prime, B_s)
     u = bdd.apply("->", nfa.B_trans & B_sigma, next_q)
@@ -61,17 +56,10 @@ def cpre_sigma(B_s, B_sigma):
     B_pre = bdd.quantify(z, nfa.vrs1, forall=True)
     return B_pre
 
-
-def cpre(B_s):
-    next_q = bdd.let(nfa.prime, B_s)
-    u = bdd.apply("->", nfa.B_trans, next_q)
-    z = bdd.quantify(u, nfa.vrs1, forall=True)
-    B_pre = bdd.quantify(z, nfa.Sigma, forall=False)
-    return B_pre
-
-
 def Cpre(q):
-    return max_sets(list(map(cpre, q)))
+    cpre = list(map(lambda s : cpre_sigma(s, nfa.B0), q))
+    cpre.extend(list(map(lambda s : cpre_sigma(s, nfa.B1), q)))
+    return max_sets(cpre)
 
 
 def backward_universality(bdd_nfa):
@@ -81,7 +69,19 @@ def backward_universality(bdd_nfa):
     while Frontier and not antichain_leq(Start, Frontier):
         q = Cpre(Frontier)
         Frontier = q if not antichain_leq(q, F) else []
-        # filter(lambda q: not antichain_leq(q, F), Cpre(Frontier))
+        # Frontier = list(filter(lambda s: not set_in_antichain(s, F),q))
+        F = antichain_lub(F, Frontier)
+    return not antichain_leq(Start, Frontier)
+
+
+def backward_universality_(bdd_nfa):
+    Start = [bdd_nfa.B_init]
+    F = [~bdd_nfa.B_final]
+    Frontier = F
+    while Frontier and not antichain_leq(Start, Frontier):
+        q = Cpre(Frontier)
+        # Frontier = q if not antichain_leq(q, F) else []
+        Frontier = list(filter(lambda s: not set_in_antichain(s, F),q))
         F = antichain_lub(F, Frontier)
     return not antichain_leq(Start, Frontier)
 
@@ -108,5 +108,9 @@ if __name__ == '__main__':
 
         start_time = timeit.default_timer()
         print(backward_universality(nfa))
+        print(timeit.default_timer() - start_time)
+
+        start_time = timeit.default_timer()
+        print(backward_universality_(nfa))
         print(timeit.default_timer() - start_time)
 
